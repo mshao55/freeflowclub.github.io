@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FreeFlow Training Library</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;800;900&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap" rel="stylesheet">
+<style>
+/* Layout idea: an index of stacked body-area stories (one big row each), each opening its own page with a player and the clips in that area. */
+:root {
+  --bg: #f3f2ef;
+  --surface: #ffffff;
+  --ink: #16171b;
+  --muted: #62646d;
+  --line: #dcdbd6;
+  --accent: #e8402b;
+  --accent-ink: #ffffff;
+  --font-display: "Archivo", "Arial Narrow", system-ui, sans-serif;
+  --font-body: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111215; --surface: #1b1c21; --ink: #f1f0ec; --muted: #a2a3ab; --line: #2c2e35;
+    --accent: #ff5a43; --accent-ink: #160604; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111215; --surface: #1b1c21; --ink: #f1f0ec; --muted: #a2a3ab; --line: #2c2e35;
+  --accent: #ff5a43; --accent-ink: #160604; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.55; }
+button { font: inherit; color: inherit; }
+a { color: inherit; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.wrap { max-width: 1160px; margin: 0 auto; padding: 0 clamp(16px, 4vw, 40px); }
+
+.skip { position: absolute; left: -999px; top: 8px; background: var(--ink); color: var(--bg); padding: 8px 12px; border-radius: 8px; z-index: 10; }
+.skip:focus { left: 8px; }
+.topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 0; border-bottom: 1px solid var(--line); }
+.brand { display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-weight: 900; letter-spacing: .02em; text-transform: uppercase; font-size: 15px; text-decoration: none; }
+.brand-mark { width: 30px; height: 30px; border-radius: 8px; background: var(--accent); display: grid; place-items: center; color: var(--accent-ink); }
+.nav { display: flex; gap: 22px; font-size: 15px; font-weight: 500; }
+.nav a { text-decoration: none; color: var(--muted); }
+.nav a:hover, .nav a[aria-current="page"] { color: var(--ink); }
+.btn { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--surface); padding: 9px 16px; border-radius: 999px; font-weight: 600; font-size: 14px; cursor: pointer; text-decoration: none; }
+.btn:hover { border-color: var(--ink); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+
+.eyebrow { font-size: 13px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: .12em; margin: 0 0 10px; }
+h1 { font-family: var(--font-display); font-weight: 900; font-size: clamp(40px, 6.5vw, 76px); line-height: .94; letter-spacing: -.02em; text-transform: uppercase; margin: 0; text-wrap: balance; }
+.lede { color: var(--muted); max-width: 60ch; margin: 16px 0 0; font-size: 17px; }
+.intro { padding: 48px 0 36px; }
+
+/* Index list */
+.stories { display: flex; flex-direction: column; border-top: 1px solid var(--line); margin-bottom: 72px; }
+.story { display: grid; grid-template-columns: minmax(0, 420px) 1fr; gap: 20px 40px; align-items: center; padding: 28px 0; border-bottom: 1px solid var(--line); text-decoration: none; }
+.thumb { position: relative; border-radius: 16px; overflow: hidden; aspect-ratio: 16 / 10; background: #0d0e12; }
+.thumb canvas { display: block; width: 100%; height: 100%; }
+.thumb .count { position: absolute; left: 12px; bottom: 12px; background: rgba(8,8,10,.7); color: #fff; font-size: 12.5px; font-weight: 700; padding: 4px 10px; border-radius: 999px; font-variant-numeric: tabular-nums; }
+.story h2 { font-family: var(--font-display); font-weight: 800; font-size: clamp(28px, 3.4vw, 40px); line-height: 1.02; margin: 0; letter-spacing: -.01em; text-wrap: balance; }
+.story .num { font-family: var(--font-display); font-weight: 800; font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; margin: 0 0 8px; }
+.story p { color: var(--muted); margin: 10px 0 0; max-width: 56ch; }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+.tag { font-size: 12.5px; font-weight: 600; border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; background: var(--surface); }
+.cta { display: inline-flex; align-items: center; gap: 6px; margin-top: 18px; font-weight: 700; font-size: 15px; color: var(--accent); }
+.cta svg { transition: transform .18s; }
+.story:hover .cta svg, .story:focus-visible .cta svg { transform: translateX(4px); }
+.story:hover h2 { text-decoration: underline; text-decoration-thickness: 3px; text-underline-offset: 5px; text-decoration-color: var(--accent); }
+
+/* Detail page */
+.crumb { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; color: var(--muted); text-decoration: none; margin: 28px 0 0; }
+.crumb:hover { color: var(--ink); }
+.detail-head { display: grid; grid-template-columns: 1fr auto; gap: 24px 40px; align-items: end; padding: 20px 0 32px; }
+.facts { display: grid; grid-template-columns: repeat(3, auto); gap: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface); }
+.facts div { padding: 12px 18px; border-left: 1px solid var(--line); }
+.facts div:first-child { border-left: 0; }
+.facts dt { font-size: 11.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.facts dd { margin: 2px 0 0; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.player-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 24px; margin-bottom: 40px; }
+.player { position: relative; background: #0b0c0f; border-radius: 16px; overflow: hidden; display: grid; place-items: center; aspect-ratio: 16 / 9; }
+.player.tall { aspect-ratio: 9 / 16; width: min(100%, 420px); justify-self: center; }
+.player .ext { position: absolute; inset: auto 16px 16px; background: rgba(10,10,12,.82); color: #fff; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+.player .ext strong { font-size: 17px; }
+.player .ext span { opacity: .8; }
+.player .ext .btn { align-self: flex-start; }
+.player canvas, .player video, .player iframe { width: 100%; height: 100%; display: block; border: 0; }
+.player .badge { position: absolute; top: 14px; left: 14px; color: rgba(255,255,255,.7); font-size: 12px; font-weight: 700; letter-spacing: .08em; }
+.pbar { position: absolute; left: 14px; right: 14px; bottom: 14px; display: flex; align-items: center; gap: 12px; color: #fff; font-size: 13px; font-variant-numeric: tabular-nums; }
+.pbar button { border: 0; background: rgba(255,255,255,.16); color: #fff; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; display: grid; place-items: center; }
+.track { flex: 1; height: 4px; background: rgba(255,255,255,.22); border-radius: 2px; overflow: hidden; }
+.track i { display: block; height: 100%; width: 0; background: var(--accent); }
+.now { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 22px; display: flex; flex-direction: column; gap: 14px; }
+.now h3 { font-family: var(--font-display); font-weight: 800; font-size: 24px; line-height: 1.1; margin: 0; }
+.now .sub { color: var(--muted); font-size: 14px; margin: 4px 0 0; }
+.cues { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; counter-reset: c; }
+.cues li { counter-increment: c; display: grid; grid-template-columns: 24px 1fr; gap: 8px; font-size: 14.5px; }
+.cues li::before { content: counter(c); width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-size: 12px; font-weight: 800; display: grid; place-items: center; margin-top: 1px; }
+.privacy { display: flex; gap: 8px; align-items: flex-start; margin: 0; font-size: 13px; color: var(--muted); background: var(--bg); border-radius: 8px; padding: 8px 10px; }
+.privacy svg { flex: none; margin-top: 3px; }
+.now .actions { margin-top: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+.section-title { font-family: var(--font-display); font-weight: 800; font-size: 22px; margin: 0 0 14px; }
+.clips { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; margin-bottom: 56px; }
+.clip { border: 1px solid var(--line); background: var(--surface); border-radius: 14px; overflow: hidden; padding: 0; text-align: left; cursor: pointer; display: flex; flex-direction: column; }
+.clip[aria-current="true"] { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.clip .cthumb { position: relative; aspect-ratio: 16 / 9; }
+.clip canvas, .clip .ytimg { width: 100%; height: 100%; display: block; object-fit: cover; }
+.clip .yt { position: absolute; right: 8px; top: 8px; background: #e62117; color: #fff; font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 6px; }
+.clip .dur { position: absolute; right: 8px; bottom: 8px; background: rgba(8,8,10,.7); color: #fff; font-size: 12px; font-weight: 700; padding: 2px 7px; border-radius: 6px; font-variant-numeric: tabular-nums; }
+.clip .playing { position: absolute; left: 8px; top: 8px; background: var(--accent); color: var(--accent-ink); font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 6px; letter-spacing: .06em; }
+.clip .cbody { padding: 12px 14px 14px; }
+.clip strong { display: block; font-size: 15px; line-height: 1.3; }
+.clip span.m { font-size: 13px; color: var(--muted); }
+.next-series { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 72px; }
+.next-series a { border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; text-decoration: none; background: var(--surface); display: flex; justify-content: space-between; align-items: center; gap: 12px; font-weight: 700; }
+.next-series a:hover { border-color: var(--ink); }
+.next-series span { color: var(--muted); font-weight: 500; font-size: 13px; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; }
+
+footer { border-top: 1px solid var(--line); padding: 32px 0 44px; color: var(--muted); font-size: 14px; }
+footer .wrap { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 24px; }
+footer h4 { color: var(--ink); font-size: 13px; text-transform: uppercase; letter-spacing: .08em; margin: 0 0 8px; }
+footer ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+footer a { text-decoration: none; }
+footer a:hover { color: var(--ink); }
+.toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 14px; font-weight: 600; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 60; max-width: calc(100% - 32px); word-break: break-all; }
+.toast.show { opacity: 1; transform: translateX(-50%); }
+
+@media (max-width: 860px) {
+  .story { grid-template-columns: 1fr; }
+  .detail-head { grid-template-columns: 1fr; }
+  .player-wrap { grid-template-columns: 1fr; }
+  .nav { display: none; }
+  footer .wrap { grid-template-columns: 1fr; }
+}
+@media (max-width: 480px) {
+  .facts { grid-template-columns: 1fr 1fr 1fr; }
+  .facts div { padding: 10px 12px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="wrap">
+  <div class="topbar">
+    <a class="brand" href="#top" data-home>
+      <span class="brand-mark" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9c2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2 2.5 2 5 2"/><path d="M2 16c2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2 2.5 2 5 2"/></svg>
+      </span>
+      FreeFlow Club
+    </a>
+    <nav class="nav" aria-label="Main">
+      <a href="#top" data-home aria-current="page">Training library</a>
+      <a href="#book" data-placeholder>Classes</a>
+      <a href="#book" data-placeholder>Coaches</a>
+    </nav>
+    <a class="btn primary" href="#book" data-placeholder>Book a class</a>
+  </div>
+</header>
+
+<main id="content" class="wrap"></main>
+
+<footer>
+  <div class="wrap">
+    <div>
+      <div class="brand" style="margin-bottom:8px">FreeFlow Club</div>
+      Move freely. Master the craft.<br>Our name comes from the Analects of Confucius: 游于艺, “to roam freely in the arts.” Our founder started out as a swim coach, so 游 (to swim, to roam) is where we began.<br>Placeholder clips shown. Swap in your own videos in the CLIPS list.
+    </div>
+    <div><h4>Library</h4><ul id="footLinks"></ul></div>
+    <div><h4>Studio</h4><ul><li><a href="#book" data-placeholder>Book a class</a></li><li><a href="#book" data-placeholder>Instagram</a></li><li><a href="#book" data-placeholder>Contact</a></li></ul></div>
+  </div>
+</footer>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+/* ============================================================
+   YOUR CONTENT LIVES HERE.
+   CATEGORIES: one entry per body area. The order here is the order on the page.
+   CLIPS: each clip belongs to one category (cat). To use a real video, add one of:
+     video:   "clips/pushup-progression.mp4"   (a file you host)
+     youtube: "dQw4w9WgXcQ"                    (an unlisted YouTube ID)
+     vimeo:   "123456789"                      (a Vimeo ID)
+   Clips with none of these show an animated placeholder.
+   ============================================================ */
+const CATEGORIES = [
+  { id: "upper-body", name: "Upper Body", color: "#2f5bd8",
+    headline: "Build pressing and pulling strength you can feel in every push-up",
+    blurb: "Chest, back, shoulders and arms. Bench and push-up progressions, rows, and the overhead work we program on Tuesdays.",
+    muscles: ["Chest", "Lats", "Shoulders", "Triceps", "Biceps"], equipment: "Dumbbells, bench, bands", level: "All levels" },
+  { id: "lower-body", name: "Lower Body", color: "#e8402b",
+    headline: "Squat deeper, hinge cleaner and lunge without wobbling",
+    blurb: "Quads, glutes and hamstrings. Squat patterns, deadlift technique and the single-leg work that fixes imbalances.",
+    muscles: ["Quads", "Glutes", "Hamstrings", "Calves"], equipment: "Barbell, kettlebell, box", level: "Beginner to intermediate" },
+  { id: "core", name: "Core", color: "#d99a12",
+    headline: "Brace like you mean it: core work that carries into every lift",
+    blurb: "Anti-rotation, anti-extension and carries. Less crunching, more bracing.",
+    muscles: ["Abs", "Obliques", "Lower back"], equipment: "Mat, cable or band", level: "All levels" },
+  { id: "full-body", name: "Full Body", color: "#1f8f6a",
+    headline: "One session, every muscle: our conditioning finishers",
+    blurb: "Short, hard circuits from our HIIT classes. Use them on days you only have 15 minutes.",
+    muscles: ["Legs", "Shoulders", "Core", "Engine"], equipment: "Kettlebell, bodyweight", level: "Intermediate" },
+  { id: "mobility", name: "Mobility & Recovery", color: "#0f8fa8",
+    headline: "Move better tomorrow: ten minutes for hips, spine and shoulders",
+    blurb: "The cool-down flows from the end of class. Do them on rest days too.",
+    muscles: ["Hips", "Thoracic spine", "Shoulders"], equipment: "Mat, foam roller", level: "All levels" }
+];
+
+const CLIPS = [
+  { id: "upper-body-combo", cat: "upper-body", title: "Upper body combo", youtube: "CRwiTHrpsBc", shape: "tall", sets: "3 × 15",
+    cues: ["Go light on the weights. Today is all about lots of reps.", "Nice and smooth. If you're swinging, the weight is too heavy.", "Keep your shoulders down, away from your ears. And don't forget to breathe!"] },
+  { id: "around-the-worlds", cat: "upper-body", title: "Around the worlds", youtube: "zB9Hs4Anydo", shape: "wide", sets: "3 × 10 each direction",
+    cues: ["Grab the weight with both hands and hold it at your chest.", "Circle it around your head nice and close, like you're drawing a halo.", "Keep your hips still and your core tight. Switch directions every set."] },
+  { id: "pushup-progression", cat: "upper-body", title: "Push-up progression", coach: "Dev K.", dur: 48, sets: "3 × 8–12",
+    cues: ["Hands just a little wider than your shoulders.", "Squeeze your glutes so your hips don't sag. Think plank, not banana!", "Lower all the way down, then push the floor away."] },
+  { id: "db-row", cat: "upper-body", title: "Single-arm dumbbell row", coach: "Maya R.", dur: 36, sets: "3 × 10 each side",
+    cues: ["Flat back, one hand on the bench right under your shoulder.", "Pull your elbow back toward your back pocket.", "Take two seconds to lower it. No dropping!"] },
+  { id: "landmine-press", cat: "upper-body", title: "Half-kneeling landmine press", coach: "Dev K.", dur: 41, sets: "3 × 8 each side",
+    cues: ["Kneel tall and squeeze the glute of your down knee.", "Press up and slightly across your body.", "Keep your ribs down. Don't lean back to cheat it up."] },
+  { id: "weighted-lunge", cat: "lower-body", title: "Weighted lunge", youtube: "Wg42UwbwuN4", shape: "tall", sets: "3 × 10 each leg",
+    cues: ["Take a nice big step, then drop that back knee straight down.", "Keep your front knee right over your toes. Don't let it cave in!", "Push through your front heel to come back up. You've got this."] },
+  { id: "rdl-squat-combo", cat: "lower-body", title: "RDL & squat combo", youtube: "eEdWUPttgLQ", shape: "wide", sets: "3 × 8",
+    cues: ["Push your hips back like you're closing a car door with your butt. Keep the dumbbells close to your legs.", "Right before you bring the weights up to your shoulders, brace your core. Tight tummy!", "Chest up, sit down into the squat, then drive up through your heels."] },
+  { id: "weighted-squat-jumps", cat: "lower-body", title: "Weighted squat jumps", youtube: "-XR__g_dZJE", shape: "tall", sets: "3 × 10",
+    cues: ["Hold the dumbbells by your sides and get ready to fly.", "Sit into the squat, then jump like you mean it!", "Land soft like a cat, and go right into the next one."] },
+  { id: "tempo-pulse", cat: "lower-body", title: "Tempo pulse", youtube: "ylWFTWYU2T0", shape: "tall", sets: "3 × 30 sec",
+    cues: ["Listen to the music. Every pulse should land right on the beat.", "Get low and stay there. Yes, your legs will burn. That's the point!", "Don't rush ahead of the music. Let the beat lead you."] },
+  { id: "goblet-squat", cat: "lower-body", title: "Goblet squat", coach: "Maya R.", dur: 39, sets: "4 × 10",
+    cues: ["Hug the weight at your chest, elbows inside your knees.", "Sit down between your heels, like there's a chair way down low.", "Push the floor away to stand up tall."] },
+  { id: "rdl", cat: "lower-body", title: "Romanian deadlift", coach: "Dev K.", dur: 52, sets: "3 × 8",
+    cues: ["Soft knees, then push your hips back.", "Let the weight slide down your thighs, nice and close.", "Stop when you feel that stretch in your hamstrings, then squeeze back up."] },
+  { id: "dead-bug", cat: "core", title: "Dead bug", coach: "Lena O.", dur: 30, sets: "3 × 8 each side",
+    cues: ["Press your lower back into the mat and keep it there.", "Reach your opposite arm and leg away, slow and steady.", "Breathe all the way out as you reach. Feel your abs work!"] },
+  { id: "pallof-press", cat: "core", title: "Pallof press", coach: "Maya R.", dur: 28, sets: "3 × 10 each side",
+    cues: ["Stand sideways to the band, feet a little wider than your hips.", "Press straight out and don't let it twist you.", "Hold it for two seconds. Fight it!"] },
+  { id: "tempo-squat-press", cat: "full-body", title: "Tempo squat & press", youtube: "vpGQ40imSE8", shape: "tall", sets: "3 × 8",
+    cues: ["Count with me: 3, 2, 1… press!", "Take your time on the way down. Slow and controlled wins here.", "Drive up and push the weights overhead in one smooth move. Keep that core tight!"] },
+  { id: "kb-complex", cat: "full-body", title: "Kettlebell complex", coach: "Maya R.", dur: 58, sets: "EMOM 10",
+    cues: ["5 swings, 5 squats, 5 presses. That's one round.", "Try not to put the bell down until the round is done.", "Whatever time is left in the minute is your rest. Enjoy it!"] },
+  { id: "burpee-ladder", cat: "full-body", title: "Burpee ladder finisher", coach: "Andre T.", dur: 45, sets: "1 to 10 reps",
+    cues: ["Add one rep every round: 1, then 2, then 3…", "Step back instead of jumping if you need to. No shame!", "Find a pace you can keep. This isn't a sprint."] },
+  { id: "hip-90-90", cat: "mobility", title: "90/90 hip switches", coach: "Lena O.", dur: 44, sets: "2 × 10 switches",
+    cues: ["Sit tall with both knees bent to 90 degrees.", "Turn your knees side to side, moving from your hips.", "Try it hands-free once you feel ready."] },
+  { id: "open-book", cat: "mobility", title: "Open book thoracic stretch", coach: "Lena O.", dur: 37, sets: "2 × 8 each side",
+    cues: ["Lie on your side with your knees stacked.", "Open your top arm like a book, and follow your hand with your eyes.", "Breathe out as you open up. Let your chest relax."] }
+];
+/* ============================================================ */
+
+const $ = s => document.querySelector(s);
+const main = $("#content");
+const dur = c => c.dur || 0;
+const fmt = s => Math.floor(s / 60) + ":" + String(Math.round(s % 60)).padStart(2, "0");
+const catById = id => CATEGORIES.find(c => c.id === id);
+const clipsIn = id => CLIPS.filter(c => c.cat === id);
+
+function hash(str) { let h = 2166136261; for (const c of str) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
+function rng(seed) { return () => { seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+
+function paint(canvas, seedId, col, word, t = 0) {
+  const ctx = canvas.getContext("2d");
+  const W = canvas.width, H = canvas.height;
+  const r = rng(hash(seedId));
+  ctx.fillStyle = "#0d0e12"; ctx.fillRect(0, 0, W, H);
+  const g = ctx.createLinearGradient(0, 0, W, H);
+  g.addColorStop(0, "rgba(13,14,18,1)"); g.addColorStop(1, col + "66");
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  ctx.lineCap = "round";
+  const n = 16 + Math.floor(r() * 10);
+  for (let i = 0; i < n; i++) {
+    const y = r() * H * 1.3, len = (0.2 + r() * 0.6) * W, w = 2 + r() * Math.min(W, H) * 0.05, speed = 0.2 + r() * 0.8;
+    const x = ((r() * 1.6 - 0.3) * W + t * speed * W * 0.25) % (W + len) - len * 0.5;
+    ctx.globalAlpha = 0.15 + r() * 0.6;
+    ctx.strokeStyle = r() > 0.3 ? col : "#ffffff";
+    ctx.lineWidth = w;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + len, y - len * 0.35); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  if (word) {
+    let fs = H * 0.42;
+    ctx.font = `900 ${fs}px Archivo, sans-serif`;
+    const tw = ctx.measureText(word).width;
+    if (tw > W * 0.88) { fs *= (W * 0.88) / tw; ctx.font = `900 ${fs}px Archivo, sans-serif`; }
+    ctx.fillStyle = "rgba(255,255,255,.1)"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(word, W / 2, H / 2);
+  }
+}
+const IN_PREVIEW = /claude|anthropic/i.test(location.hostname);
+function canvasFor(w, h) { const c = document.createElement("canvas"); c.width = w; c.height = h; return c; }
+const arrow = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
+
+/* Index page */
+function renderIndex() {
+  cancelAnimationFrame(raf);
+  document.title = "FreeFlow Training Library";
+  const total = CLIPS.reduce((s, c) => s + dur(c), 0);
+  main.innerHTML = `
+    <section class="intro">
+      <p class="eyebrow">Training library</p>
+      <h1>Move freely.<br>Master the craft.</h1>
+      <p class="lede">Train by body area with short demo clips from our coaches, grouped by what they work. ${CATEGORIES.length} areas, ${CLIPS.length} clips, ${Math.round(total / 60)} minutes in all. Pick one and follow along.</p>
+    </section>
+    <section class="stories" aria-label="Body areas"></section>`;
+  const list = main.querySelector(".stories");
+  CATEGORIES.forEach((cat, i) => {
+    const n = clipsIn(cat.id).length;
+    const a = document.createElement("a");
+    a.className = "story"; a.href = "#" + cat.id;
+    a.innerHTML = `
+      <div class="thumb"><span class="count">${n} clip${n === 1 ? "" : "s"}</span></div>
+      <div>
+        <p class="num">${String(i + 1).padStart(2, "0")} · ${cat.name}</p>
+        <h2>${cat.headline}</h2>
+        <p>${cat.blurb}</p>
+        <div class="tags">${cat.muscles.map(m => `<span class="tag">${m}</span>`).join("")}</div>
+        <span class="cta">Watch the ${cat.name.toLowerCase()} clips ${arrow}</span>
+      </div>`;
+    const cv = canvasFor(840, 525);
+    paint(cv, cat.id, cat.color, cat.name.split(" ")[0].toUpperCase());
+    a.querySelector(".thumb").prepend(cv);
+    list.appendChild(a);
+  });
+  window.scrollTo(0, 0);
+}
+
+/* Detail page */
+let raf = 0, playing = true, elapsed = 0, last = 0, stageCanvas = null, current = null, currentCat = null;
+function renderDetail(cat, clipId) {
+  cancelAnimationFrame(raf);
+  currentCat = cat;
+  document.title = cat.name + " · FreeFlow Training Library";
+  const list = clipsIn(cat.id);
+  const total = list.reduce((s, c) => s + dur(c), 0);
+  const others = CATEGORIES.filter(c => c.id !== cat.id);
+  main.innerHTML = `
+    <a class="crumb" href="#top" data-home><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg> All body areas</a>
+    <section class="detail-head">
+      <div>
+        <p class="eyebrow" style="color:${cat.color}">${cat.name}</p>
+        <h1 style="font-size:clamp(34px,5vw,60px)">${cat.headline}</h1>
+        <p class="lede">${cat.blurb}</p>
+      </div>
+      <dl class="facts">
+        <div><dt>Clips</dt><dd>${list.length}</dd></div>
+        <div><dt>Total</dt><dd>${fmt(total)}</dd></div>
+        <div><dt>Level</dt><dd>${cat.level}</dd></div>
+      </dl>
+    </section>
+    <section class="player-wrap">
+      <div class="player" id="player"></div>
+      <aside class="now" aria-live="polite">
+        <div><h3 id="nowTitle"></h3><p class="sub" id="nowSub"></p></div>
+        <div><p class="eyebrow" style="margin:0 0 8px">Coach's tips</p><ol class="cues" id="nowCues"></ol></div>
+        <p class="sub" style="margin:0">Equipment: ${cat.equipment}</p>
+        <p class="privacy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/></svg><span>Some clips are blurred to protect our clients' privacy.</span></p>
+        <div class="actions">
+          <button class="btn primary" type="button" id="shareBtn">Copy link to this area</button>
+          <button class="btn" type="button" id="nextBtn">Next clip ${arrow}</button>
+        </div>
+      </aside>
+    </section>
+    <h2 class="section-title">All ${cat.name.toLowerCase()} clips</h2>
+    <section class="clips" id="clipList"></section>
+    <h2 class="section-title">Other body areas</h2>
+    <section class="next-series">${others.map(o => `<a href="#${o.id}">${o.name}<span>${clipsIn(o.id).length} clips ${arrow}</span></a>`).join("")}</section>`;
+
+  const grid = $("#clipList");
+  list.forEach(clip => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "clip"; b.dataset.id = clip.id;
+    b.innerHTML = `<div class="cthumb">${clip.dur ? `<span class="dur">${fmt(clip.dur)}</span>` : ""}${clip.youtube ? '<span class="yt">YouTube</span>' : ""}</div><div class="cbody"><strong>${clip.title}</strong><span class="m">${[clip.sets, clip.coach].filter(Boolean).join(" · ")}</span></div>`;
+    const cv = canvasFor(480, 270);
+    paint(cv, clip.id, cat.color, "", 3);
+    b.querySelector(".cthumb").prepend(cv);
+    if (clip.youtube) {
+      const img = new Image();
+      img.alt = ""; img.className = "ytimg";
+      img.onload = () => cv.replaceWith(img);
+      img.src = `https://i.ytimg.com/vi/${clip.youtube}/hqdefault.jpg`;
+    }
+    b.addEventListener("click", () => { play(clip); $("#player").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" }); });
+    grid.appendChild(b);
+  });
+  $("#shareBtn").addEventListener("click", () => copyLink(location.href.split("#")[0] + "#" + cat.id));
+  $("#nextBtn").addEventListener("click", () => { const i = list.indexOf(current); play(list[(i + 1) % list.length]); });
+  play(list.find(c => c.id === clipId) || list[0], true);
+  window.scrollTo(0, 0);
+}
+
+function play(clip, initial) {
+  cancelAnimationFrame(raf);
+  current = clip;
+  const cat = currentCat;
+  const p = $("#player");
+  p.innerHTML = "";
+  p.classList.toggle("tall", clip.shape === "tall");
+  stageCanvas = null;
+  if (clip.video) {
+    const v = document.createElement("video");
+    v.src = clip.video; v.controls = true; v.playsInline = true; if (!initial) v.autoplay = true;
+    p.appendChild(v);
+  } else if ((clip.youtube || clip.vimeo) && IN_PREVIEW) {
+    const link = clip.youtube ? (clip.shape === "tall" ? `https://www.youtube.com/shorts/${clip.youtube}` : `https://www.youtube.com/watch?v=${clip.youtube}`) : `https://vimeo.com/${clip.vimeo}`;
+    const bg = clip.shape === "tall" ? canvasFor(720, 1280) : canvasFor(1280, 720); paint(bg, clip.id, cat.color, "", 3);
+    p.appendChild(bg);
+    p.insertAdjacentHTML("beforeend", `<div class="ext"><strong>${clip.title}</strong><span>This video plays here once the site is live. The Claude preview blocks embedded YouTube players.</span><a class="btn primary" href="${link}" target="_blank" rel="noopener">Watch on ${clip.youtube ? "YouTube" : "Vimeo"}</a></div>`);
+  } else if (clip.youtube || clip.vimeo) {
+    const f = document.createElement("iframe");
+    f.src = clip.youtube ? `https://www.youtube-nocookie.com/embed/${clip.youtube}?rel=0&playsinline=1&modestbranding=1${initial ? "" : "&autoplay=1"}` : `https://player.vimeo.com/video/${clip.vimeo}${initial ? "" : "?autoplay=1"}`;
+    f.allow = "autoplay; fullscreen; picture-in-picture"; f.allowFullscreen = true; f.title = clip.title;
+    p.appendChild(f);
+  } else {
+    stageCanvas = canvasFor(1280, 720);
+    stageCanvas.setAttribute("aria-label", "Placeholder video for " + clip.title);
+    p.appendChild(stageCanvas);
+    p.insertAdjacentHTML("beforeend", `<span class="badge">PLACEHOLDER CLIP</span>
+      <div class="pbar"><button type="button" id="pp" aria-label="Pause"></button><span id="pt">0:00</span><div class="track"><i id="ptr"></i></div><span>${fmt(clip.dur)}</span></div>`);
+    $("#pp").addEventListener("click", toggle);
+    stageCanvas.addEventListener("click", toggle);
+    elapsed = 0; playing = !initial; last = performance.now(); setIcon(); tick(last);
+  }
+  $("#nowTitle").textContent = clip.title;
+  $("#nowSub").textContent = [clip.sets, clip.coach, clip.dur ? fmt(clip.dur) : ""].filter(Boolean).join(" · ");
+  $("#nowCues").innerHTML = clip.cues.map(c => `<li>${c}</li>`).join("");
+  document.querySelectorAll(".clip").forEach(b => {
+    const on = b.dataset.id === clip.id;
+    b.setAttribute("aria-current", on);
+    const tag = b.querySelector(".playing");
+    if (on && !tag) b.querySelector(".cthumb").insertAdjacentHTML("beforeend", '<span class="playing">NOW SHOWING</span>');
+    if (!on && tag) tag.remove();
+  });
+}
+function tick(now) {
+  if (!stageCanvas) return;
+  if (playing) elapsed += (now - last) / 1000;
+  last = now;
+  if (elapsed >= current.dur) { elapsed = current.dur; if (playing) { playing = false; setIcon(); } }
+  paint(stageCanvas, current.id, currentCat.color, current.title.split(" ").slice(-1)[0].toUpperCase(), elapsed + 3);
+  $("#ptr").style.width = (elapsed / current.dur * 100) + "%";
+  $("#pt").textContent = fmt(elapsed);
+  raf = requestAnimationFrame(tick);
+}
+function setIcon() {
+  const b = $("#pp"); if (!b) return;
+  b.innerHTML = playing ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>' : '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16l13-8z"/></svg>';
+  b.setAttribute("aria-label", playing ? "Pause" : "Play");
+}
+function toggle() {
+  if (!playing && elapsed >= current.dur) elapsed = 0;
+  playing = !playing; last = performance.now(); setIcon();
+}
+
+function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove("show"), 2600); }
+async function copyLink(url) { try { await navigator.clipboard.writeText(url); toast("Link copied"); } catch (e) { toast("Copy this link: " + url); } }
+
+/* Routing on the plain #name hash */
+let lastRoute = null;
+function route(force) {
+  const id = location.hash.slice(1);
+  if (force !== true && id === lastRoute) return;
+  lastRoute = id;
+  const cat = catById(id);
+  if (cat) renderDetail(cat);
+  else if (id !== "content") renderIndex();
+}
+document.addEventListener("click", e => {
+  const a = e.target.closest("a"); if (!a) return;
+  if (a.hasAttribute("data-placeholder")) { e.preventDefault(); toast("Placeholder: link this to your own page"); }
+  else if (a.hasAttribute("data-home")) { e.preventDefault(); try { history.pushState(null, "", location.pathname + location.search); } catch (err) {} lastRoute = ""; renderIndex(); }
+});
+addEventListener("hashchange", route);
+addEventListener("popstate", route);
+document.addEventListener("keydown", e => { if (e.key === " " && stageCanvas && e.target === document.body) { e.preventDefault(); toggle(); } });
+
+$("#footLinks").innerHTML = CATEGORIES.map(c => `<li><a href="#${c.id}">${c.name}</a></li>`).join("");
+route(true);
+document.fonts && document.fonts.ready.then(() => route(true));
+</script>
+</body>
+</html>
